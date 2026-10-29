@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>폰 노이만 보정 시뮬레이터</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#111;--sub:#777;--line:#dcdcdc;--soft:#f3f3f1;--red:#e3262b;--green:#1f8a4c;--pink:#ffe3e3}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:clamp(10px,min(1.62vh,0.92vw),30px)}
+body{background:#fff;color:var(--ink);font-family:"Noto Sans KR",system-ui,sans-serif;overflow:hidden;height:100vh;user-select:none;-webkit-user-select:none}
+.mono{font-family:"JetBrains Mono",monospace}
+.r{color:var(--red)} .g{color:var(--green)} .s{color:var(--sub)}
+
+/* frame */
+#top{position:fixed;top:0;left:0;right:0;height:4.2rem;display:flex;align-items:flex-end;justify-content:center;padding-bottom:.8rem;font-size:.85rem;color:var(--sub);border-bottom:1.5px solid #555;margin:0 4rem;z-index:5;background:#fff}
+#stage{position:fixed;inset:4.2rem 0 3.6rem 0;cursor:pointer}
+.scene{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem 4rem;text-align:center}
+.scene.on{display:flex;animation:fadein .45s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+#bot{position:fixed;left:0;right:0;bottom:0;height:3.6rem;display:flex;align-items:center;justify-content:space-between;padding:0 4rem;font-size:.85rem;color:var(--sub);z-index:5}
+#dots{display:flex;gap:.45rem}
+#dots i{width:.6rem;height:.6rem;border-radius:50%;background:var(--line);display:block;transition:.3s}
+#dots i.on{background:var(--red);width:1.6rem;border-radius:.3rem}
+.navb{display:flex;gap:.6rem}
+.navb button{border:1.5px solid var(--line);background:#fff;border-radius:.5rem;padding:.3rem .9rem;font-size:.95rem;cursor:pointer;color:var(--ink)}
+
+h1{font-size:4.4rem;font-weight:900;letter-spacing:-.15rem;line-height:1.2}
+h2{font-size:2.6rem;font-weight:900;letter-spacing:-.08rem;line-height:1.3}
+.kicker{font-size:1.1rem;font-weight:700;color:var(--red);letter-spacing:.1rem;margin-bottom:.8rem}
+.lead{font-size:1.45rem;color:#444;margin-top:1rem;line-height:1.6}
+.hint{position:absolute;bottom:1.2rem;left:0;right:0;font-size:1rem;color:var(--sub);animation:blink 1.6s infinite}
+@keyframes blink{50%{opacity:.25}}
+
+/* person */
+.person{width:15rem;height:16.5rem;position:relative;flex:none}
+.person svg{width:100%;height:100%;overflow:visible}
+.person .mouth,.person .sweat,.person .eyes-x{display:none}
+.person[data-mood=smug] .m-smug,.person[data-mood=happy] .m-happy,.person[data-mood=sweat] .m-sweat,.person[data-mood=shock] .m-shock{display:inline}
+.person[data-mood=sweat] .sweat,.person[data-mood=shock] .sweat{display:inline;animation:drip 1.2s infinite}
+.person[data-mood=shock] .eyes-n{display:none}.person[data-mood=shock] .eyes-x{display:inline}
+@keyframes drip{0%{transform:translateY(0);opacity:1}100%{transform:translateY(10px);opacity:0}}
+.person .arm{transform-origin:118px 128px}
+.person.writing .arm{animation:scribble .18s infinite alternate}
+@keyframes scribble{from{transform:rotate(-6deg) translateX(-2px)}to{transform:rotate(5deg) translateX(3px)}}
+.person.writing .headg{animation:bob .6s infinite alternate;transform-origin:90px 90px}
+@keyframes bob{to{transform:rotate(3deg)}}
+.person.shake{animation:shake .4s 2}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.bubble{position:absolute;left:62%;top:-3.2rem;background:#fff;border:2px solid var(--ink);border-radius:1.2rem;padding:.7rem 1.1rem;font-size:1.15rem;font-weight:700;white-space:nowrap;opacity:0;transform:scale(.8);transform-origin:0 100%;transition:.25s;z-index:3}
+.bubble.on{opacity:1;transform:scale(1)}
+.bubble:after{content:"";position:absolute;left:1.4rem;bottom:-.7rem;width:1.1rem;height:1.1rem;background:#fff;border-right:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg)}
+.bubble.think{border-style:dashed;font-weight:500}
+
+/* chips */
+.chip{width:2.4rem;height:2.4rem;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font:800 1rem "JetBrains Mono",monospace;border:2px solid var(--ink);flex:none}
+.chip.H{background:var(--ink);color:#fff}.chip.T{background:#fff}
+.chip.pop{animation:pop .25s ease}
+@keyframes pop{from{transform:scale(0)}70%{transform:scale(1.25)}}
+.bit{width:2rem;height:2.4rem;border-radius:.4rem;display:inline-flex;align-items:center;justify-content:center;font:800 1.15rem "JetBrains Mono",monospace;background:var(--soft);flex:none}
+.bit.one{background:var(--pink);color:var(--red)}
+
+.paper{background:#fffef8;border:1.5px solid #e5e2d0;border-radius:.8rem;padding:1.4rem 1.6rem;box-shadow:0 .4rem 1.2rem rgba(0,0,0,.06);min-height:7.5rem;min-width:62rem;max-width:90rem;display:flex;flex-wrap:wrap;gap:.45rem;align-content:flex-start;position:relative}
+.paper:before{content:"동전 30번 던진 척하기";position:absolute;top:-1.6rem;left:0;font-size:.95rem;color:var(--sub)}
+
+.row{display:flex;gap:2.5rem;align-items:center;justify-content:center}
+.col{display:flex;flex-direction:column;align-items:center}
+
+/* judge */
+.big{font:800 7rem "JetBrains Mono",monospace;line-height:1}
+.gauge{position:relative;width:60rem;height:4.5rem;margin:3rem auto 1rem}
+.gauge .track{position:absolute;top:1.6rem;left:0;right:0;height:1.2rem;background:var(--soft);border-radius:.6rem}
+.gauge .band{position:absolute;top:1.6rem;height:1.2rem;background:#cfe9da;border-radius:.6rem}
+.gauge .mk{position:absolute;top:0;transform:translateX(-50%);font-size:.95rem;font-weight:700;white-space:nowrap;transition:left 1.2s cubic-bezier(.2,.8,.2,1)}
+.gauge .mk:after{content:"";display:block;width:3px;height:2.2rem;margin:.2rem auto 0;background:currentColor}
+.gauge .ticks{position:absolute;top:3.2rem;left:0;right:0;display:flex;justify-content:space-between;font:500 .85rem "JetBrains Mono",monospace;color:var(--sub)}
+.stamp{position:absolute;right:-2rem;top:-4rem;border:.35rem solid var(--red);color:var(--red);font-weight:900;font-size:2.4rem;padding:.4rem 1.2rem;border-radius:.6rem;transform:rotate(-12deg) scale(3);opacity:0;transition:.35s cubic-bezier(.3,1.6,.5,1)}
+.stamp.on{opacity:.9;transform:rotate(-12deg) scale(1)}
+.verdict{display:flex;gap:1.2rem;margin-top:2rem;justify-content:center}
+.vbox{border:2px solid var(--line);border-radius:1rem;padding:1rem 1.8rem;font-size:1.35rem;opacity:0;transform:translateY(10px);transition:.4s}
+.vbox.on{opacity:1;transform:none}
+.vbox b{font-size:1.6rem}
+
+/* transitions grid */
+.tgrid{display:grid;grid-template-columns:repeat(29,2.4rem .55rem) 2.4rem;row-gap:.6rem;margin:2.5rem auto 0;justify-content:center}
+.tgrid .chip{grid-row:1}
+.tgrid .bit{grid-row:2;justify-self:center;width:1.9rem;opacity:0;transform:translateY(-10px);transition:.25s}
+.tgrid .bit.on{opacity:1;transform:none}
+.coin{width:9rem;height:9rem;margin:0 auto;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9a8,#e6b422 60%,#b3860f);border:.3rem solid #9b7409;display:flex;align-items:center;justify-content:center;font:800 2.2rem "JetBrains Mono",monospace;color:#6b4f00;animation:wobble 1.6s infinite ease-in-out;box-shadow:0 .5rem 1rem rgba(0,0,0,.12)}
+@keyframes wobble{0%,100%{transform:scaleX(1) rotate(-8deg);border-radius:50% 45% 55% 48%}50%{transform:scaleX(.82) rotate(8deg);border-radius:45% 55% 48% 52%}}
+
+/* trick */
+.cards{display:flex;gap:2rem;justify-content:center;margin-top:2.5rem}
+.card{border:2px solid var(--line);border-radius:1.2rem;padding:1.4rem 1.8rem;min-width:15rem;opacity:0;transform:translateY(14px);transition:.4s}
+.card.on{opacity:1;transform:none}
+.card .pb{font:800 2.8rem "JetBrains Mono",monospace;letter-spacing:.4rem}
+.card .eq{font:600 1.15rem "JetBrains Mono",monospace;margin-top:.6rem;color:#444}
+.card .res{font-size:1.4rem;font-weight:900;margin-top:.6rem}
+.card.keep{border-color:var(--red);background:#fff7f7}
+.card.drop{background:var(--soft)}
+.card.drop .pb{color:#aaa}
+.scale{width:34rem;margin:2.5rem auto 0;position:relative;height:7rem;opacity:0;transition:.4s}
+.scale.on{opacity:1}
+.scale .beam{position:absolute;top:2rem;left:0;right:0;height:.5rem;background:var(--ink);border-radius:.3rem;transform:rotate(-8deg);transition:transform 1s cubic-bezier(.3,1.5,.5,1)}
+.scale.on .beam{transform:rotate(0)}
+.scale .pan{position:absolute;top:-1rem;font:800 1.4rem "JetBrains Mono",monospace;background:var(--pink);color:var(--red);padding:.3rem .8rem;border-radius:.5rem}
+.scale .post{position:absolute;left:50%;top:2.3rem;width:.5rem;height:4rem;background:var(--ink);transform:translateX(-50%)}
+.scale .eqs{position:absolute;left:50%;top:-1.2rem;transform:translateX(-50%);font-weight:900;font-size:2rem}
+
+/* pairs */
+.pairs{display:flex;gap:.7rem;flex-wrap:wrap;justify-content:center;max-width:80rem;margin-top:2rem}
+.pair{width:4.6rem;border:2px solid var(--line);border-radius:.8rem;padding:.6rem 0 .5rem;display:flex;flex-direction:column;align-items:center;gap:.25rem;transition:.3s}
+.pair .pb{font:800 1.4rem "JetBrains Mono",monospace;letter-spacing:.2rem}
+.pair .ar{font-size:.85rem;color:var(--sub)}
+.pair .rs{font:800 1.4rem "JetBrains Mono",monospace;height:1.8rem;opacity:0}
+.pair.cur{border-color:var(--ink);transform:translateY(-.5rem);box-shadow:0 .4rem .8rem rgba(0,0,0,.1)}
+.pair.keep{border-color:var(--red);background:#fff7f7}.pair.keep .rs{opacity:1;color:var(--red)}
+.pair.drop{opacity:.3;transform:scale(.9)}.pair.drop .rs{opacity:1;font:500 .85rem "Noto Sans KR";line-height:1.8rem}
+.outwrap{display:flex;align-items:center;gap:3rem;margin-top:2.6rem}
+.outrow{display:flex;gap:.6rem;min-height:3.6rem;min-width:24rem;padding:.4rem;border-bottom:3px solid var(--red)}
+.obit{width:3rem;height:3.4rem;border:.2rem solid var(--red);border-radius:.5rem;display:flex;align-items:center;justify-content:center;font:800 1.7rem "JetBrains Mono",monospace;color:var(--red);background:#fff;animation:pop .3s}
+.trash{font-size:3rem;position:relative}
+.trash b{position:absolute;right:-1.6rem;top:-.4rem;background:var(--ink);color:#fff;font:800 1rem "JetBrains Mono",monospace;border-radius:1rem;padding:.1rem .5rem}
+.trash.hit{animation:shake .3s}
+
+/* output */
+.bigout{display:flex;gap:1rem;justify-content:center;margin:2rem 0}
+.bigout .obit{width:5rem;height:5.8rem;font-size:3rem;border-width:.3rem}
+.cmp{display:flex;align-items:center;gap:2rem;justify-content:center;font-size:1.5rem;margin-top:1rem}
+.cmp .n{font:800 4rem "JetBrains Mono",monospace}
+
+/* stats */
+.chart{display:flex;gap:5rem;justify-content:center;margin-top:2.5rem;align-items:flex-end}
+.grp{display:flex;flex-direction:column;align-items:center}
+.grp .bars{display:flex;gap:1.6rem;align-items:flex-end;height:20rem;position:relative;padding:0 1rem;border-bottom:2px solid var(--ink)}
+.grp .ref{position:absolute;left:-.5rem;right:-.5rem;border-top:2px dashed var(--green);bottom:50%}
+.grp .ref span{position:absolute;right:-4.5rem;top:-.8rem;font-size:.85rem;color:var(--green);font-weight:700}
+.vb{width:6.5rem;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.vb .fill{width:100%;height:0;border-radius:.5rem .5rem 0 0;transition:height 1.2s cubic-bezier(.2,.8,.2,1)}
+.vb .v{font:800 1.4rem "JetBrains Mono",monospace;margin-bottom:.4rem;opacity:0;transition:.4s .9s}
+.vb.on .v{opacity:1}
+.grp .lab{display:flex;gap:1.6rem;padding:0 1rem;margin-top:.6rem}
+.grp .lab span{width:6.5rem;font-size:1rem;color:var(--sub)}
+.grp h3{font-size:1.4rem;margin-top:1rem}
+
+/* cost */
+.costwrap{display:flex;gap:4rem;align-items:center;margin-top:2rem}
+.cbars{display:flex;gap:.8rem;align-items:flex-end;height:20rem;border-bottom:2px solid var(--ink);padding:0 .5rem}
+.cb{width:4.4rem;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;cursor:pointer}
+.cb .fill{width:100%;background:var(--ink);border-radius:.4rem .4rem 0 0;transition:.3s}
+.cb.cur .fill{background:var(--red)}
+.cb .v{font:700 1rem "JetBrains Mono",monospace;margin-bottom:.3rem}
+.cbl{display:flex;gap:.8rem;padding:0 .5rem;margin-top:.5rem}
+.cbl span{width:4.4rem;font:500 .9rem "JetBrains Mono",monospace;color:var(--sub)}
+.cbl span.cur{color:var(--red);font-weight:800}
+input[type=range]{width:30rem;accent-color:var(--red);height:2rem;cursor:pointer}
+.costnum{font:800 5rem "JetBrains Mono",monospace;line-height:1}
+
+/* play */
+.play{width:100%;max-width:86rem;display:flex;flex-direction:column;align-items:center;gap:1.2rem}
+.pbtns{display:flex;gap:1rem;align-items:center}
+.pbtns button{font-family:inherit;cursor:pointer;border-radius:1rem;font-weight:900}
+.bigbtn{width:7rem;height:7rem;font:800 3rem "JetBrains Mono",monospace!important;border:3px solid var(--ink)}
+.bigbtn.H{background:var(--ink);color:#fff}.bigbtn.T{background:#fff;color:var(--ink)}
+.bigbtn:active{transform:scale(.94)}
+.smallbtn{padding:.8rem 1.3rem;font-size:1.1rem;border:2px solid var(--line);background:#fff;color:var(--ink)}
+.pseq{min-height:6.4rem;width:100%;border:2px dashed var(--line);border-radius:1rem;padding:.9rem;display:flex;flex-wrap:wrap;gap:.4rem;align-content:flex-start;justify-content:center}
+.pseq .ph{color:var(--sub);font-size:1.2rem;margin:auto}
+.pstats{display:flex;gap:1.2rem;justify-content:center;flex-wrap:wrap}
+.pst{border:2px solid var(--line);border-radius:1rem;padding:.7rem 1.4rem;min-width:13rem}
+.pst .k{font-size:.95rem;color:var(--sub)}
+.pst .v{font:800 1.9rem "JetBrains Mono",monospace}
+.pverdict{font-size:1.7rem;font-weight:900;min-height:2.4rem}
+.pout{display:flex;gap:.4rem;flex-wrap:wrap;justify-content:center;min-height:3rem;align-items:center}
+.pout .obit{width:2.4rem;height:2.8rem;font-size:1.3rem}
+
+.endline{font-size:1.6rem;line-height:2;margin-top:1.6rem}
+.restart{margin-top:2.4rem;font:700 1.2rem "Noto Sans KR";padding:.8rem 1.8rem;border-radius:.8rem;border:2px solid var(--ink);background:var(--ink);color:#fff;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="top">인간의 무작위성 인식과 선택 편향의 수학적 모델링 · 8. 구현과 시뮬레이션</div>
+
+<div id="stage">
+
+<!-- 0 title -->
+<section class="scene" data-k="title">
+  <div class="kicker">8. 구현과 시뮬레이션</div>
+  <h1>사람은 랜덤을 <span class="r">못 한다</span><br>그럼, 고칠 수는 있을까?</h1>
+  <p class="lead">편향된 수열 → 폰 노이만 보정 → 진짜 랜덤</p>
+  <div class="hint">화면을 클릭하거나 → 키를 누르세요</div>
+</section>
+
+<!-- 1 intro -->
+<section class="scene" data-k="intro">
+  <div class="row" style="gap:5rem">
+    <div class="person" id="p1"></div>
+    <div style="text-align:left;max-width:40rem">
+      <div class="kicker">오늘의 참가자</div>
+      <h2>평범한 사람 1명</h2>
+      <p class="lead">미션: <b>동전을 30번 던진 것처럼</b><br>H(앞면)와 T(뒷면)를 써 주세요.</p>
+      <p class="lead s" style="font-size:1.1rem">※ 컴퓨터로 만든 가상의 사람입니다 (전환확률 p = 0.7)</p>
+    </div>
+  </div>
+</section>
+
+<!-- 2 writing -->
+<section class="scene" data-k="write">
+  <div class="row" style="gap:3rem;align-items:flex-end">
+    <div class="person" id="p2"></div>
+    <div class="col" style="align-items:flex-start">
+      <div class="paper" id="paper"></div>
+      <div style="margin-top:.8rem;font-size:1.1rem" class="s" id="wcount">0 / 30</div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 judge -->
+<section class="scene" data-k="judge">
+  <div class="kicker">채점 시간</div>
+  <h2>H와 T가 몇 번 <span class="r">바뀌었나?</span></h2>
+  <div class="row" style="gap:4rem;margin-top:1.5rem;position:relative">
+        <div class="col">
+      <div class="big"><span id="jnum">0</span><span class="s" style="font-size:3rem"> / 29</span></div>
+      <div class="s" style="font-size:1.1rem;margin-top:.4rem">진짜 동전이면 평균 <b class="mono">14.5</b>번</div>
+    </div>
+  </div>
+  <div class="gauge" id="gauge">
+    <div class="track"></div>
+    <div class="band" style="left:calc(9.1/29*100%);width:calc(10.8/29*100%)"></div>
+    <div class="mk g" style="left:50%">진짜 동전 14.5</div>
+    <div class="mk r" id="hmk" style="left:0%">이 사람</div>
+    <div class="ticks"><span>0</span><span>29</span></div>
+    
+  </div>
+  <div class="verdict">
+    <div class="vbox on" id="v1">H <b class="mono" id="hc">15</b> · T <b class="mono" id="tc">15</b><br><span class="g">비율 → 공정 ✔</span></div>
+    <div class="vbox on" id="v2">너무 자주 바꿈<br><span class="r">순서 → 독립 ✘</span></div>
+  </div>
+</section>
+
+<!-- 4 transitions -->
+<section class="scene" data-k="trans">
+  <div class="kicker">보정 단계 ①</div>
+  <h2>"바꿨으면 <span class="r">1</span>, 안 바꿨으면 0"으로 다시 쓰기</h2>
+  <div class="tgrid" id="tgrid"></div>
+  <div class="row" style="margin-top:2.8rem;gap:3rem;opacity:0;transition:.5s" id="coinrow" data-x="1">
+        <div style="text-align:left">
+      <div style="font-size:1.6rem;font-weight:900">1의 비율 <span class="r mono" id="onerate">0.72</span></div>
+      <div class="lead" style="margin-top:.4rem">= <b>1이 70% 나오는 찌그러진 동전</b>을<br>29번 던진 것과 같다</div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 trick -->
+<section class="scene" data-k="trick">
+  <div class="kicker">보정 단계 ② · 폰 노이만의 트릭</div>
+  <h2>찌그러진 동전을 <span class="r">2번씩</span> 던지면?</h2>
+  <div class="cards">
+    <div class="card keep" id="c1"><div class="pb">01</div><div class="eq">0.3 × 0.7 = 0.21</div><div class="res r">→ 0 출력</div></div>
+    <div class="card keep" id="c2"><div class="pb">10</div><div class="eq">0.7 × 0.3 = 0.21</div><div class="res r">→ 1 출력</div></div>
+    <div class="card drop" id="c3"><div class="pb">00 · 11</div><div class="eq">0.09 ≠ 0.49</div><div class="res s">→ 버림</div></div>
+  </div>
+  <p class="lead" style="margin-top:.6rem;opacity:0;transition:.4s" id="tricktxt">곱하는 순서만 다르고 값은 같다 → 동전이 아무리 찌그러져도 <b class="r">정확히 반반</b></p>
+</section>
+
+<!-- 6 pairs -->
+<section class="scene" data-k="pairs">
+  <div class="kicker">보정 단계 ② 실행</div>
+  <h2>2개씩 묶어서 번역하기</h2>
+  <div class="pairs" id="pairs"></div>
+  <div class="outwrap">
+    <div style="font-size:1.3rem;font-weight:900">출력</div>
+    <div class="outrow" id="outrow"></div>
+    <div class="s" style="font-size:1.2rem">버림 <b class="mono" id="tn">0</b>쌍</div>
+  </div>
+</section>
+
+<!-- 7 output -->
+<section class="scene" data-k="out">
+  <div class="kicker">결과</div>
+  <h2>공정한 결정 비트 완성</h2>
+  <div class="bigout" id="bigout"></div>
+  <div class="row" style="gap:3rem;margin-top:3.5rem">
+        <div style="text-align:left">
+      <div class="cmp"><span>입력</span><span class="n">30</span><span>→</span><span>출력</span><span class="n r" id="olen">6</span></div>
+      <p class="lead" style="font-size:1.2rem">같은 값이 연속으로 나와도 OK → <b>사람이 피하던 패턴</b>이 돌아왔다</p>
+    </div>
+  </div>
+</section>
+
+<!-- 8 stats -->
+<section class="scene" data-k="stats">
+  <div class="kicker">한 명으론 부족하다</div>
+  <h2>가상의 사람 <span class="r">10,000명</span>으로 반복하면?</h2>
+  <div class="chart">
+    <div class="grp">
+      <div class="bars"><div class="ref"><span>0.5</span></div>
+        <div class="vb" id="sb1"><div class="v">–</div><div class="fill" style="background:#999"></div></div>
+        <div class="vb" id="sb2"><div class="v">–</div><div class="fill" style="background:var(--red)"></div></div>
+      </div>
+      <div class="lab"><span>보정 전</span><span>보정 후</span></div>
+      <h3>H의 비율</h3>
+    </div>
+    <div class="grp">
+      <div class="bars"><div class="ref"><span>0.5</span></div>
+        <div class="vb" id="sb3"><div class="v">–</div><div class="fill" style="background:#999"></div></div>
+        <div class="vb" id="sb4"><div class="v">–</div><div class="fill" style="background:var(--red)"></div></div>
+      </div>
+      <div class="lab"><span>보정 전</span><span>보정 후</span></div>
+      <h3>전환율</h3>
+    </div>
+  </div>
+  <p class="lead" id="statmsg" style="opacity:0;transition:.5s .8s">비율은 원래 반반 · 전환율 <b class="r mono" id="sw1">0.70</b> → <b class="g mono" id="sw2">0.50</b> &nbsp;⇒&nbsp; <b>공정 + 독립 회복</b> (평균 출력 <b class="mono" id="avgl">5.9</b>개, 이론값 5.88)</p>
+</section>
+
+<!-- 9 cost -->
+<section class="scene" data-k="cost">
+  <div class="kicker">대가</div>
+  <h2>편향이 심할수록 <span class="r">더 많이 버린다</span></h2>
+  <div class="costwrap">
+    <div>
+      <div class="cbars" id="cbars"></div>
+      <div class="cbl" id="cbl"></div>
+    </div>
+    <div class="col nonav" style="gap:1rem">
+            <div style="font-size:1.2rem">30개 넣으면 평균</div>
+      <div class="costnum r" id="cnum">5.9</div>
+      <div style="font-size:1.2rem">개 출력 &nbsp;<span class="s mono" id="cp">(p = 0.7)</span></div>
+      <input type="range" id="crange" min="0.1" max="0.9" step="0.1" value="0.7">
+      <div class="s" style="font-size:.95rem">슬라이더나 막대를 눌러 p를 바꿔보세요</div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 play -->
+<section class="scene" data-k="play">
+  <div class="kicker">직접 해보기</div>
+  <h2>여러분은 랜덤을 할 수 있나요?</h2>
+  <div class="play nonav">
+    <div class="pbtns">
+      <button class="bigbtn H" id="bH">H</button>
+      <button class="bigbtn T" id="bT">T</button>
+      <div style="width:1.5rem"></div>
+      <button class="smallbtn" id="bU">↶ 하나 지우기</button>
+      <button class="smallbtn" id="bC">전부 지우기</button>
+      <button class="smallbtn" id="bR">가상의 사람</button>
+    </div>
+    <div class="pseq" id="pseq"><span class="ph">H, T 버튼(또는 키보드 H / T)으로 30개 정도 입력해 보세요</span></div>
+    <div class="pstats">
+      <div class="pst"><div class="k">입력</div><div class="v" id="pk1">0</div></div>
+      <div class="pst"><div class="k">전환 횟수</div><div class="v" id="pk2">–</div></div>
+      <div class="pst"><div class="k">전환율 (랜덤 ≈ 0.50)</div><div class="v" id="pk3">–</div></div>
+      <div class="pst"><div class="k">보정 후 출력</div><div class="v r" id="pk4">0</div></div>
+    </div>
+    <div class="pverdict" id="pv"></div>
+    <div class="pout" id="pout"></div>
+  </div>
+</section>
+
+<!-- 11 end -->
+<section class="scene" data-k="end">
+  <h1>사람은 랜덤을 못 한다.<br><span class="r">하지만 수학은 고칠 수 있다.</span></h1>
+  <div class="endline">
+    비율만 보면 안 보이고, <b>순서</b>를 보면 보인다<br>
+    전환 지표 + 폰 노이만 → <b>공정 + 독립</b><br>
+    대가는 <b>버려지는 데이터</b>
+  </div>
+  <button class="restart nonav" id="again">처음부터 다시 (새로운 사람)</button>
+</section>
+
+</div>
+
+<div id="bot">
+  <span>[DWD] 김찬종 · 김하율 · 이준우</span>
+  <div id="dots"></div>
+  <div class="navb nonav"><button id="prev">←</button><button id="next">→</button></div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const scenes=[...document.querySelectorAll('.scene')];
+let cur=0, timers=[], busy=false;
+const later=(f,ms)=>timers.push(setTimeout(f,ms));
+const clearT=()=>{timers.forEach(clearTimeout);timers=[];};
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+
+/* ---------- math ---------- */
+function human(n,p){const x=[Math.random()<.5?1:0];for(let i=1;i<n;i++)x.push(x[i-1]^(Math.random()<p?1:0));return x;}
+const trans=x=>x.slice(1).map((v,i)=>v^x[i]);
+const pairsOf=s=>{const r=[];for(let i=0;i+1<s.length;i+=2)r.push([s[i],s[i+1]]);return r;};
+const correct=x=>pairsOf(trans(x)).filter(([a,b])=>a!==b).map(([a])=>a);
+const theory=(n,p)=>Math.floor((n-1)/2)*2*p*(1-p);
+const sum=a=>a.reduce((x,y)=>x+y,0);
+
+let X,S,PR,OUT;
+function newDemo(){
+  for(let k=0;k<5000;k++){
+    const x=human(30,.7),s=trans(x),pr=pairsOf(s),o=correct(x),sw=sum(s);
+    if(sw>=21&&sw<=23&&Math.abs(sum(x)-15)<=1&&o.length>=5&&o.length<=8&&pr.some(([a,b])=>a===0&&b===0)&&o.some((v,i)=>i&&v===o[i-1])){X=x;S=s;PR=pr;OUT=o;return;}
+  }
+  X=human(30,.7);S=trans(X);PR=pairsOf(S);OUT=correct(X);
+}
+
+/* ---------- person ---------- */
+const PERSON=`<svg viewBox="0 0 200 220">
+ <rect x="10" y="168" width="190" height="10" rx="4" fill="#c9b48a"/>
+ <rect x="20" y="178" width="8" height="40" fill="#c9b48a"/><rect x="182" y="178" width="8" height="40" fill="#c9b48a"/>
+ <path d="M60 168 Q60 112 90 108 Q120 112 122 168Z" fill="#111"/>
+ <g class="headg">
+  <circle cx="90" cy="64" r="36" fill="#fff" stroke="#111" stroke-width="4"/>
+  <path d="M56 54 Q60 24 92 26 Q122 26 126 56 Q112 40 92 42 Q70 40 56 54Z" fill="#111"/>
+  <g class="eyes-n"><circle cx="78" cy="66" r="4" fill="#111"/><circle cx="104" cy="66" r="4" fill="#111"/></g>
+  <g class="eyes-x" stroke="#111" stroke-width="3.5" stroke-linecap="round"><path d="M73 61l10 10M83 61l-10 10M99 61l10 10M109 61l-10 10"/></g>
+  <path class="mouth m-smug" d="M80 82 Q92 90 104 80" fill="none" stroke="#111" stroke-width="3.5" stroke-linecap="round"/>
+  <path class="mouth m-happy" d="M78 80 Q91 96 106 80Z" fill="#e3262b" stroke="#111" stroke-width="3" stroke-linejoin="round"/>
+  <path class="mouth m-sweat" d="M80 86 Q86 80 92 86 Q98 92 104 86" fill="none" stroke="#111" stroke-width="3.5" stroke-linecap="round"/>
+  <ellipse class="mouth m-shock" cx="91" cy="86" rx="6" ry="8" fill="#111"/>
+  <path class="sweat" d="M122 48 Q128 60 122 64 Q116 60 122 48Z" fill="#6fb6ff"/>
+ </g>
+ <g class="arm"><path d="M110 128 L146 160" stroke="#111" stroke-width="9" stroke-linecap="round"/>
+  <path d="M142 150 L162 168" stroke="#e3262b" stroke-width="5" stroke-linecap="round"/></g>
+ <rect x="128" y="160" width="62" height="8" fill="#fff" stroke="#ccc"/>
+</svg><div class="bubble"></div>`;
+function mkPerson(id,mood){const el=$(id);el.innerHTML=PERSON;el.dataset.mood=mood;return el;}
+function say(el,txt,think){const b=el.querySelector('.bubble');b.textContent=txt;b.classList.toggle('think',!!think);b.classList.add('on');}
+function hush(el){el.querySelector('.bubble').classList.remove('on');}
+
+const chip=(v,pop)=>`<span class="chip ${v?'H':'T'} ${pop?'pop':''}">${v?'H':'T'}</span>`;
+
+/* ---------- scenes ---------- */
+const S_={
+ title(){},
+ intro(fast){
+  mkPerson('p1','smug');
+ },
+ write(fast){
+  const p=mkPerson('p2','smug'),paper=$('paper');paper.innerHTML='';
+  if(fast){paper.innerHTML=X.map(v=>chip(v)).join('');$('wcount').textContent='30 / 30';return;}
+  busy=true;p.classList.add('writing');
+  X.forEach((v,i)=>later(()=>{paper.insertAdjacentHTML('beforeend',chip(v,true));$('wcount').textContent=`${i+1} / 30`;},300+i*170));
+  later(()=>{p.classList.remove('writing');busy=false;},300+30*170+100);
+ },
+ judge(){
+  const sw=sum(S),h=sum(X);
+  $('hc').textContent=h;$('tc').textContent=30-h;$('jnum').textContent=sw;
+  $('hmk').style.left='0%';later(()=>$('hmk').style.left=(sw/29*100)+'%',100);
+ },
+ trans(fast){
+  const g=$('tgrid');let h='';
+  X.forEach((v,i)=>{h+=`<span class="chip ${v?'H':'T'}" style="grid-column:${2*i+1}">${v?'H':'T'}</span>`;});
+  S.forEach((v,i)=>{h+=`<span class="bit ${v?'one':''}" style="grid-column:${2*i+2}">${v}</span>`;});
+  g.innerHTML=h;$('onerate').textContent=(sum(S)/S.length).toFixed(2);$('coinrow').style.opacity=0;
+  const bits=[...g.querySelectorAll('.bit')];
+  if(fast){bits.forEach(b=>b.classList.add('on'));$('coinrow').style.opacity=1;return;}
+  busy=true;bits.forEach((b,i)=>later(()=>b.classList.add('on'),400+i*90));
+  later(()=>{$('coinrow').style.opacity=1;busy=false;},400+bits.length*90+300);
+ },
+ trick(){
+  ['c1','c2','c3'].forEach(k=>$(k).classList.add('on'));$('tricktxt').style.opacity=1;
+ },
+ pairs(fast){
+  const box=$('pairs'),out=$('outrow');let tn=0;$('tn').textContent=0;out.innerHTML='';
+  box.innerHTML=PR.map(([a,b])=>`<div class="pair"><div class="pb">${a}${b}</div><div class="ar">↓</div><div class="rs">${a!==b?a:'버림'}</div></div>`).join('');
+  const els=[...box.children];
+  const step=i=>{const [a,b]=PR[i],el=els[i];
+    els.forEach(e=>e.classList.remove('cur'));
+    if(a!==b){el.classList.add('keep');out.insertAdjacentHTML('beforeend',`<div class="obit">${a}</div>`);}
+    else{el.classList.add('drop');tn++;$('tn').textContent=tn;}};
+  if(fast){els.forEach((_,i)=>step(i));return;}
+  busy=true;
+  els.forEach((el,i)=>{later(()=>el.classList.add('cur'),400+i*520);later(()=>step(i),400+i*520+300);});
+  later(()=>busy=false,400+els.length*520+300);
+ },
+ out(){
+  $('bigout').innerHTML=OUT.map(v=>`<div class="obit">${v}</div>`).join('');$('olen').textContent=OUT.length;
+ },
+ stats(fast){
+  const T=10000;let i1=0,it=0,is=0,ip=0,o1=0,ot=0,os=0,op=0,L=0;
+  for(let t=0;t<T;t++){const x=human(30,.7),y=correct(x);
+    for(let i=0;i<x.length;i++){i1+=x[i];it++;if(i){is+=x[i]!==x[i-1];ip++;}}
+    for(let i=0;i<y.length;i++){o1+=y[i];ot++;if(i){os+=y[i]!==y[i-1];op++;}}L+=y.length;}
+  const vals=[i1/it,o1/ot,is/ip,os/op];
+  ['sb1','sb2','sb3','sb4'].forEach((k,j)=>{const el=$(k);el.classList.remove('on');el.querySelector('.fill').style.height='0';el.querySelector('.v').textContent=vals[j].toFixed(3);});
+  $('sw1').textContent=vals[2].toFixed(2);$('sw2').textContent=vals[3].toFixed(2);$('avgl').textContent=(L/T).toFixed(2);
+  $('statmsg').style.opacity=0;
+  later(()=>{['sb1','sb2','sb3','sb4'].forEach((k,j)=>{const el=$(k);el.classList.add('on');el.querySelector('.fill').style.height=(vals[j]*100*0.85/0.85)+'%';});$('statmsg').style.opacity=1;},fast?0:250);
+ },
+ cost(){
+  const ps=[.1,.2,.3,.4,.5,.6,.7,.8,.9];
+  const draw=q=>{
+    const mx=theory(30,.5);
+    $('cbars').innerHTML=ps.map(x=>`<div class="cb ${Math.abs(x-q)<1e-9?'cur':''}" data-p="${x}"><div class="v">${theory(30,x).toFixed(1)}</div><div class="fill" style="height:${theory(30,x)/mx*88}%"></div></div>`).join('');
+    $('cbl').innerHTML=ps.map(x=>`<span class="${Math.abs(x-q)<1e-9?'cur':''}">p=${x}</span>`).join('');
+    $('cnum').textContent=theory(30,q).toFixed(1);$('cp').textContent=`(p = ${q.toFixed(1)})`;$('crange').value=q;
+    document.querySelectorAll('#cbars .cb').forEach(b=>b.onclick=e=>{e.stopPropagation();draw(parseFloat(b.dataset.p));});
+  };
+  $('crange').oninput=e=>draw(parseFloat(e.target.value));
+  $('cbars').classList.add('nonav');
+  draw(.7);
+ },
+ play(){renderPlay();},
+ end(){}
+};
+
+/* ---------- playground ---------- */
+let PS=[];
+function renderPlay(){
+  const seq=$('pseq');
+  seq.innerHTML=PS.length?PS.map(v=>chip(v)).join(''):'<span class="ph">H, T 버튼(또는 키보드 H / T)으로 30개 정도 입력해 보세요</span>';
+  $('pk1').textContent=PS.length;
+  if(PS.length<2){$('pk2').textContent='–';$('pk3').textContent='–';$('pk4').textContent=0;$('pv').textContent='';$('pout').innerHTML='';return;}
+  const s=trans(PS),sw=sum(s),rate=sw/s.length,o=correct(PS);
+  $('pk2').textContent=`${sw} / ${s.length}`;$('pk3').textContent=rate.toFixed(2);$('pk4').textContent=o.length;
+  const pv=$('pv');
+  if(PS.length<12){pv.innerHTML='<span class="s">조금 더 입력해 보세요…</span>';}
+  else if(rate>.62)pv.innerHTML='<span class="r">너무 자주 바꿨어요 (전형적인 사람의 패턴)</span>';
+  else if(rate<.38)pv.innerHTML='<span class="r">너무 안 바꿨어요</span>';
+  else pv.innerHTML='<span class="g">랜덤에 가까워요</span>';
+  $('pout').innerHTML=o.length?'<span style="font-weight:900;margin-right:.6rem">보정 후 →</span>'+o.map(v=>`<div class="obit">${v}</div>`).join(''):'';
+}
+const addP=v=>{if(PS.length<48){PS.push(v);renderPlay();}};
+$('bH').onclick=()=>addP(1);$('bT').onclick=()=>addP(0);
+$('bU').onclick=()=>{PS.pop();renderPlay();};
+$('bC').onclick=()=>{PS=[];renderPlay();};
+$('bR').onclick=()=>{PS=human(30,.7);renderPlay();};
+
+/* ---------- navigation ---------- */
+const dots=$('dots');dots.innerHTML=scenes.map(()=>'<i></i>').join('');
+function go(i,fast){
+  clearT();busy=false;
+  cur=Math.max(0,Math.min(scenes.length-1,i));
+  scenes.forEach((s,k)=>s.classList.toggle('on',k===cur));
+  [...dots.children].forEach((d,k)=>d.classList.toggle('on',k===cur));
+  S_[scenes[cur].dataset.k](!!fast);
+}
+function next(){ if(busy){clearT();busy=false;S_[scenes[cur].dataset.k](true);return;} if(cur<scenes.length-1)go(cur+1); }
+function prev(){ if(cur>0)go(cur-1,true); }
+$('stage').addEventListener('click',e=>{ if(e.target.closest('.nonav,button,input'))return; next(); });
+document.querySelectorAll('.nonav').forEach(el=>el.addEventListener('click',e=>e.stopPropagation()));
+$('next').onclick=next;$('prev').onclick=prev;
+$('again').onclick=()=>{newDemo();PS=[];go(0);};
+document.addEventListener('keydown',e=>{
+  if(scenes[cur].dataset.k==='play'){const k=e.key.toLowerCase();if(k==='h'){addP(1);return;}if(k==='t'){addP(0);return;}if(k==='backspace'){PS.pop();renderPlay();return;}}
+  if(['ArrowRight',' ','Enter','PageDown'].includes(e.key)){e.preventDefault();next();}
+  if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();prev();}
+});
+newDemo();go(0);
+</script>
+</body>
+</html>
